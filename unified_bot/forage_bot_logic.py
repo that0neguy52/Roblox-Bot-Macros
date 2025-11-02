@@ -100,6 +100,60 @@ def non_max_suppression(boxes, scores, threshold):
     return keep
 
 
+def find_rgb_targets(screenshot, region, target_rgb=(255, 255, 255), tolerance=5, min_size=10, max_size=1000):
+    """
+    Find clusters of pixels matching target RGB color
+    Returns list of detection dictionaries similar to template matching
+    """
+    try:
+        # Convert screenshot to numpy array if needed
+        if not isinstance(screenshot, np.ndarray):
+            img_array = np.array(screenshot)
+        else:
+            img_array = screenshot
+        
+        # Convert RGB to BGR for OpenCV
+        img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+        
+        # Create mask for pixels matching target color within tolerance
+        lower = np.array([max(0, c - tolerance) for c in reversed(target_rgb)])  # BGR order
+        upper = np.array([min(255, c + tolerance) for c in reversed(target_rgb)])  # BGR order
+        mask = cv2.inRange(img_bgr, lower, upper)
+        
+        # Find contours (clusters)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        targets = []
+        for contour in contours:
+            area = cv2.contourArea(contour)
+            if min_size <= area <= max_size:
+                # Get center of cluster
+                M = cv2.moments(contour)
+                if M["m00"] != 0:
+                    cx = int(M["m10"] / M["m00"])
+                    cy = int(M["m01"] / M["m00"])
+                    
+                    # Get bounding box for the cluster
+                    x, y, w, h = cv2.boundingRect(contour)
+                    
+                    # Calculate absolute positions
+                    center_x_abs = region[0] + cx
+                    center_y_abs = region[1] + cy
+                    
+                    targets.append({
+                        'pos': (center_x_abs, center_y_abs),
+                        'center_rel': (cx, cy),
+                        'score': 1.0,  # RGB detection doesn't have confidence scores
+                        'box_rel': (x, y, x + w, y + h)
+                    })
+        
+        return targets
+        
+    except Exception as e:
+        logger.error(f"Error in find_rgb_targets: {e}")
+        return []
+
+
 def find_buttons_advanced(canny_templates, region, settings):
     """Find buttons in a region using template matching."""
     try:
@@ -107,8 +161,8 @@ def find_buttons_advanced(canny_templates, region, settings):
         screenshot_bgr = cv2.cvtColor(np.array(screenshot_pil), cv2.COLOR_RGB2BGR)
         screenshot_gray = cv2.cvtColor(screenshot_bgr, cv2.COLOR_BGR2GRAY)
         
-        haystack_edges = preprocess_haystack_edges(screenshot_gray, 
-                                                   settings['grayscale_min'], 
+        haystack_edges = preprocess_haystack_edges(screenshot_gray,
+                                                   settings['grayscale_min'],
                                                    settings['grayscale_max'])
         
         if haystack_edges is None:
@@ -246,11 +300,19 @@ def forage_bot_loop(config, stop_event, template_path):
     STRIKE_COUNTS = config.get('strike_counts', {})
     BLACKLIST = config.get('blacklist', {})
     
+    # Determine detection method
+    detection_method = config.get('detection_method', 'Template Matching')
+    logger.info(f"Using detection method: {detection_method}")
+    
     try:
         game_region = tuple(config['search_region'])
         left_arrow_pos = tuple(config['left_arrow_pos'])
         right_arrow_pos = tuple(config['right_arrow_pos'])
-        all_templates = load_template_pyramid(template_path, config)
+        
+        # Load templates only if using template matching
+        all_templates = []
+        if detection_method == 'Template Matching':
+            all_templates = load_template_pyramid(template_path, config)
     except Exception as e:
         logger.error(f"Failed to load calibrated settings: {e}")
         return
@@ -279,7 +341,22 @@ def forage_bot_loop(config, stop_event, template_path):
                 area_blacklist = BLACKLIST.get(area_key, [])
                 radius = config['blacklist_radius']
                 
-                all_found_buttons = find_buttons_advanced(all_templates, game_region, config)
+                # Define RGB parameters (used for both detection and rescanning)
+                target_rgb = (config.get('rgb_target_r', 255),
+                             config.get('rgb_target_g', 255),
+                             config.get('rgb_target_b', 255))
+                tolerance = config.get('rgb_tolerance', 5)
+                min_cluster = config.get('rgb_min_cluster', 10)
+                max_cluster = config.get('rgb_max_cluster', 1000)
+                
+                # Use appropriate detection method
+                if detection_method == 'RGB Color Detection':
+                    screenshot_pil = pyautogui.screenshot(region=game_region)
+                    all_found_buttons = find_rgb_targets(screenshot_pil, game_region,
+                                                        target_rgb, tolerance,
+                                                        min_cluster, max_cluster)
+                else:  # Template Matching
+                    all_found_buttons = find_buttons_advanced(all_templates, game_region, config)
                 
                 found_buttons = []
                 for btn in all_found_buttons:
@@ -346,7 +423,14 @@ def forage_bot_loop(config, stop_event, template_path):
                         
                         rescan_box_abs = (r_left, r_top, r_width, r_height)
                         
-                        rescan_matches = find_buttons_advanced(all_templates, rescan_box_abs, config)
+                        # Rescan using the same detection method
+                        if detection_method == 'RGB Color Detection':
+                            rescan_screenshot = pyautogui.screenshot(region=rescan_box_abs)
+                            rescan_matches = find_rgb_targets(rescan_screenshot, rescan_box_abs,
+                                                             target_rgb, tolerance,
+                                                             min_cluster, max_cluster)
+                        else:
+                            rescan_matches = find_buttons_advanced(all_templates, rescan_box_abs, config)
                         
                         if len(rescan_matches) > 0:
                             learning_data_changed = True

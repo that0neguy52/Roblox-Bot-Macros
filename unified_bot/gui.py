@@ -130,10 +130,19 @@ class UnifiedBotGUI:
         self.forage_search_region = None
         self.forage_left_arrow = None
         self.forage_right_arrow = None
+        self.forage_detection_method = tk.StringVar(value="Template Matching")
         self.forage_detection_threshold = tk.DoubleVar(value=0.25)
         self.forage_mouse_speed = tk.DoubleVar(value=0.3)
         self.forage_total_areas = tk.IntVar(value=6)
         self.forage_post_click_delay = tk.DoubleVar(value=1.8)
+        
+        # RGB Detection Settings
+        self.forage_rgb_target_r = tk.IntVar(value=255)
+        self.forage_rgb_target_g = tk.IntVar(value=255)
+        self.forage_rgb_target_b = tk.IntVar(value=255)
+        self.forage_rgb_tolerance = tk.IntVar(value=5)
+        self.forage_rgb_min_cluster = tk.IntVar(value=10)
+        self.forage_rgb_max_cluster = tk.IntVar(value=1000)
         
         # False Positive Learning Settings
         self.forage_strike_limit = tk.IntVar(value=5)
@@ -475,7 +484,20 @@ class UnifiedBotGUI:
         self.stop_button = ttk.Button(controls_frame, text=f"Stop Bot ({hotkey_name})", command=self.stop_bot, state=tk.DISABLED)
         self.stop_button.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
         
-        # Mouse Settings (moved to top)
+        # Detection Method Selection
+        method_frame = ttk.Labelframe(scrollable_frame, text="Detection Method", padding=10)
+        method_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        ttk.Radiobutton(method_frame, text="Template Matching",
+                        variable=self.forage_detection_method,
+                        value="Template Matching",
+                        command=self.on_detection_method_changed).pack(side="left", padx=10)
+        ttk.Radiobutton(method_frame, text="RGB Color Detection",
+                        variable=self.forage_detection_method,
+                        value="RGB Color Detection",
+                        command=self.on_detection_method_changed).pack(side="left", padx=10)
+        
+        # Mouse Settings (shared between both methods)
         mouse_frame = ttk.Labelframe(scrollable_frame, text="Mouse Settings", padding=10)
         mouse_frame.pack(fill=tk.X, pady=5)
         mouse_frame.columnconfigure(1, weight=1)
@@ -496,79 +518,120 @@ class UnifiedBotGUI:
         variability_spin.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
         variability_spin.bind("<MouseWheel>", lambda e: "break")
         ToolTip(snap_dist_spin, "Pixels within which mouse snaps directly to target")
-        
-        # Detection Settings
-        detection_frame = ttk.Labelframe(scrollable_frame, text="Detection Settings", padding=10)
-        detection_frame.pack(fill=tk.X, pady=5)
         ToolTip(variability_spin, "Random offset added to clicks for human-like behavior")
         
-        # Detection Settings tooltips
-        detection_frame.columnconfigure(1, weight=1)
+        # Template Matching Settings Frame
+        self.template_settings_frame = ttk.Labelframe(scrollable_frame, text="Template Matching Settings", padding=10)
+        self.template_settings_frame.pack(fill=tk.X, padx=5, pady=5)
+        self.template_settings_frame.columnconfigure(1, weight=1)
         
-        ttk.Label(detection_frame, text="Detection Threshold (0.0-1.0):").grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        det_thresh_spin = ttk.Spinbox(detection_frame, from_=0.0, to=1.0, increment=0.05, textvariable=self.forage_detection_threshold, format="%.2f")
+        ttk.Label(self.template_settings_frame, text="Detection Threshold (0.0-1.0):").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        det_thresh_spin = ttk.Spinbox(self.template_settings_frame, from_=0.0, to=1.0, increment=0.05, textvariable=self.forage_detection_threshold, format="%.2f")
         det_thresh_spin.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
         det_thresh_spin.bind("<MouseWheel>", lambda e: "break")
-        
-        ttk.Label(detection_frame, text="NMS Threshold (0.0-1.0):").grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        nms_spin = ttk.Spinbox(detection_frame, from_=0.0, to=1.0, increment=0.05, textvariable=self.forage_nms_threshold, format="%.2f")
         ToolTip(det_thresh_spin, "Minimum confidence for template matching (lower=more sensitive)")
+        
+        ttk.Label(self.template_settings_frame, text="NMS Threshold (0.0-1.0):").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        nms_spin = ttk.Spinbox(self.template_settings_frame, from_=0.0, to=1.0, increment=0.05, textvariable=self.forage_nms_threshold, format="%.2f")
         nms_spin.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
         nms_spin.bind("<MouseWheel>", lambda e: "break")
-        
-        ttk.Label(detection_frame, text="Grayscale Min (0-255):").grid(row=2, column=0, padx=5, pady=5, sticky="w")
         ToolTip(nms_spin, "Non-maximum suppression threshold for overlapping detections")
-        gray_min_spin = ttk.Spinbox(detection_frame, from_=0, to=255, increment=5, textvariable=self.forage_grayscale_min)
+        
+        ttk.Label(self.template_settings_frame, text="Grayscale Min (0-255):").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        gray_min_spin = ttk.Spinbox(self.template_settings_frame, from_=0, to=255, increment=5, textvariable=self.forage_grayscale_min)
         gray_min_spin.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
         gray_min_spin.bind("<MouseWheel>", lambda e: "break")
-        
         ToolTip(gray_min_spin, "Minimum grayscale value to filter targets (0=black, 255=white)")
-        ttk.Label(detection_frame, text="Grayscale Max (0-255):").grid(row=3, column=0, padx=5, pady=5, sticky="w")
-        gray_max_spin = ttk.Spinbox(detection_frame, from_=0, to=255, increment=5, textvariable=self.forage_grayscale_max)
+        
+        ttk.Label(self.template_settings_frame, text="Grayscale Max (0-255):").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        gray_max_spin = ttk.Spinbox(self.template_settings_frame, from_=0, to=255, increment=5, textvariable=self.forage_grayscale_max)
         gray_max_spin.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
         gray_max_spin.bind("<MouseWheel>", lambda e: "break")
         ToolTip(gray_max_spin, "Maximum grayscale value to filter targets (0=black, 255=white)")
         
-        ttk.Label(detection_frame, text="Scale Min (0.5-1.5):").grid(row=4, column=0, padx=5, pady=5, sticky="w")
-        scale_min_spin = ttk.Spinbox(detection_frame, from_=0.5, to=1.5, increment=0.1, textvariable=self.forage_scale_min, format="%.1f")
+        ttk.Label(self.template_settings_frame, text="Scale Min (0.5-1.5):").grid(row=4, column=0, padx=5, pady=5, sticky="w")
+        scale_min_spin = ttk.Spinbox(self.template_settings_frame, from_=0.5, to=1.5, increment=0.1, textvariable=self.forage_scale_min, format="%.1f")
         scale_min_spin.grid(row=4, column=1, padx=5, pady=5, sticky="ew")
-        ToolTip(scale_min_spin, "Minimum template scale for multi-scale detection")
         scale_min_spin.bind("<MouseWheel>", lambda e: "break")
+        ToolTip(scale_min_spin, "Minimum template scale for multi-scale detection")
         
-        ttk.Label(detection_frame, text="Scale Max (0.5-1.5):").grid(row=5, column=0, padx=5, pady=5, sticky="w")
-        scale_max_spin = ttk.Spinbox(detection_frame, from_=0.5, to=1.5, increment=0.1, textvariable=self.forage_scale_max, format="%.1f")
-        ToolTip(scale_max_spin, "Maximum template scale for multi-scale detection")
+        ttk.Label(self.template_settings_frame, text="Scale Max (0.5-1.5):").grid(row=5, column=0, padx=5, pady=5, sticky="w")
+        scale_max_spin = ttk.Spinbox(self.template_settings_frame, from_=0.5, to=1.5, increment=0.1, textvariable=self.forage_scale_max, format="%.1f")
         scale_max_spin.grid(row=5, column=1, padx=5, pady=5, sticky="ew")
         scale_max_spin.bind("<MouseWheel>", lambda e: "break")
+        ToolTip(scale_max_spin, "Maximum template scale for multi-scale detection")
         
-        ttk.Label(detection_frame, text="Scale Steps (5-50):").grid(row=6, column=0, padx=5, pady=5, sticky="w")
-        ToolTip(scale_steps_spin, "Number of scale steps between min and max (more=slower but more accurate)")
-        scale_steps_spin = ttk.Spinbox(detection_frame, from_=5, to=50, increment=5, textvariable=self.forage_scale_steps)
+        ttk.Label(self.template_settings_frame, text="Scale Steps (5-50):").grid(row=6, column=0, padx=5, pady=5, sticky="w")
+        scale_steps_spin = ttk.Spinbox(self.template_settings_frame, from_=5, to=50, increment=5, textvariable=self.forage_scale_steps)
         scale_steps_spin.grid(row=6, column=1, padx=5, pady=5, sticky="ew")
         scale_steps_spin.bind("<MouseWheel>", lambda e: "break")
+        ToolTip(scale_steps_spin, "Number of scale steps between min and max (more=slower but more accurate)")
         
-        ToolTip(patrol_spin, "Number of game areas to patrol for resources")
-        ttk.Label(detection_frame, text="Total Patrol Areas:").grid(row=7, column=0, padx=5, pady=5, sticky="w")
-        patrol_spin = ttk.Spinbox(detection_frame, from_=1, to=20, increment=1, textvariable=self.forage_total_areas)
-        patrol_spin.grid(row=7, column=1, padx=5, pady=5, sticky="ew")
+        # RGB Detection Settings Frame
+        self.rgb_settings_frame = ttk.Labelframe(scrollable_frame, text="RGB Color Detection Settings", padding=10)
+        self.rgb_settings_frame.columnconfigure(1, weight=1)
+        
+        ttk.Label(self.rgb_settings_frame, text="Target RGB Color:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        rgb_color_frame = ttk.Frame(self.rgb_settings_frame)
+        rgb_color_frame.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        
+        ttk.Label(rgb_color_frame, text="R:").pack(side="left", padx=2)
+        rgb_r_spin = ttk.Spinbox(rgb_color_frame, from_=0, to=255, increment=1, textvariable=self.forage_rgb_target_r, width=5)
+        rgb_r_spin.pack(side="left", padx=2)
+        rgb_r_spin.bind("<MouseWheel>", lambda e: "break")
+        
+        ttk.Label(rgb_color_frame, text="G:").pack(side="left", padx=2)
+        rgb_g_spin = ttk.Spinbox(rgb_color_frame, from_=0, to=255, increment=1, textvariable=self.forage_rgb_target_g, width=5)
+        rgb_g_spin.pack(side="left", padx=2)
+        rgb_g_spin.bind("<MouseWheel>", lambda e: "break")
+        
+        ttk.Label(rgb_color_frame, text="B:").pack(side="left", padx=2)
+        rgb_b_spin = ttk.Spinbox(rgb_color_frame, from_=0, to=255, increment=1, textvariable=self.forage_rgb_target_b, width=5)
+        rgb_b_spin.pack(side="left", padx=2)
+        rgb_b_spin.bind("<MouseWheel>", lambda e: "break")
+        ToolTip(rgb_color_frame, "Target RGB color to detect (default: 255,255,255 = white)")
+        
+        ttk.Label(self.rgb_settings_frame, text="RGB Tolerance (0-50):").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        rgb_tol_spin = ttk.Spinbox(self.rgb_settings_frame, from_=0, to=50, increment=1, textvariable=self.forage_rgb_tolerance)
+        rgb_tol_spin.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        rgb_tol_spin.bind("<MouseWheel>", lambda e: "break")
+        ToolTip(rgb_tol_spin, "How close pixels must be to target color (lower=more strict)")
+        
+        ttk.Label(self.rgb_settings_frame, text="Min Cluster Size (px):").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        rgb_min_spin = ttk.Spinbox(self.rgb_settings_frame, from_=1, to=500, increment=5, textvariable=self.forage_rgb_min_cluster)
+        rgb_min_spin.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+        rgb_min_spin.bind("<MouseWheel>", lambda e: "break")
+        ToolTip(rgb_min_spin, "Minimum pixels in a cluster to be considered a detection")
+        
+        ttk.Label(self.rgb_settings_frame, text="Max Cluster Size (px):").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        rgb_max_spin = ttk.Spinbox(self.rgb_settings_frame, from_=10, to=5000, increment=50, textvariable=self.forage_rgb_max_cluster)
+        rgb_max_spin.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
+        rgb_max_spin.bind("<MouseWheel>", lambda e: "break")
+        ToolTip(rgb_max_spin, "Maximum pixels in a cluster to be considered a detection")
+        
+        # Patrol Areas (shared setting)
+        patrol_frame = ttk.Labelframe(scrollable_frame, text="Patrol Areas", padding=10)
+        patrol_frame.pack(fill=tk.X, padx=5, pady=5)
+        patrol_frame.columnconfigure(1, weight=1)
+        
+        ttk.Label(patrol_frame, text="Total Patrol Areas:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        patrol_spin = ttk.Spinbox(patrol_frame, from_=1, to=20, increment=1, textvariable=self.forage_total_areas)
+        patrol_spin.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
         patrol_spin.bind("<MouseWheel>", lambda e: "break")
+        ToolTip(patrol_spin, "Number of game areas to patrol for resources")
         
-        ToolTip(self.speed_factor_entry, "Controls how fast the mouse moves (0.1=slow, 0.5=fast)")
         # Timing Settings
         timing_frame = ttk.Labelframe(scrollable_frame, text="Timing Settings", padding=10)
         timing_frame.pack(fill=tk.X, pady=5)
         timing_frame.columnconfigure(1, weight=1)
-        ToolTip(self.snap_dist_entry, "Pixels within which mouse snaps directly to target")
         
         ttk.Label(timing_frame, text="Scan Interval (s):").grid(row=0, column=0, padx=5, pady=5, sticky="w")
         scan_spin = ttk.Spinbox(timing_frame, from_=0.001, to=1.0, increment=0.01, textvariable=self.forage_scan_interval, format="%.3f")
         scan_spin.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
-        ToolTip(self.variability_entry, "Random offset added to clicks for human-like behavior")
         scan_spin.bind("<MouseWheel>", lambda e: "break")
         
         ttk.Label(timing_frame, text="Area Load Delay (s):").grid(row=1, column=0, padx=5, pady=5, sticky="w")
         area_delay_spin = ttk.Spinbox(timing_frame, from_=0.1, to=10.0, increment=0.1, textvariable=self.forage_area_load_delay, format="%.1f")
-        ToolTip(self.after_click_delay_entry, "Wait time after clicking a button")
         area_delay_spin.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
         area_delay_spin.bind("<MouseWheel>", lambda e: "break")
         
@@ -614,6 +677,24 @@ class UnifiedBotGUI:
         ttk.Button(button_frame, text="Save Settings", command=self.manual_save_settings).grid(row=0, column=0, padx=5, pady=5, sticky="ew")
         ttk.Button(button_frame, text="Reset to Default", command=self.reset_to_defaults).grid(row=0, column=1, padx=5, pady=5, sticky="ew")
         ttk.Button(button_frame, text="Save as New Default", command=self.save_as_default).grid(row=0, column=2, padx=5, pady=5, sticky="ew")
+        
+        # Initialize visibility based on detection method
+        self.on_detection_method_changed()
+    
+    def on_detection_method_changed(self):
+        """Show/hide settings based on selected detection method"""
+        method = self.forage_detection_method.get()
+        
+        if method == "Template Matching":
+            # Show template-specific settings
+            self.template_settings_frame.pack(fill="x", padx=5, pady=5)
+            self.rgb_settings_frame.pack_forget()
+        else:  # RGB Color Detection
+            # Show RGB-specific settings
+            self.template_settings_frame.pack_forget()
+            self.rgb_settings_frame.pack(fill="x", padx=5, pady=5)
+        
+        self.save_settings()
 
     def create_calibration_widgets(self, parent):
         """Placeholder - will be replaced by bot-specific widgets."""
@@ -1524,10 +1605,19 @@ class UnifiedBotGUI:
                     self.forage_search_region = forage_settings.get('forage_search_region')
                     self.forage_left_arrow = forage_settings.get('forage_left_arrow')
                     self.forage_right_arrow = forage_settings.get('forage_right_arrow')
+                    self.forage_detection_method.set(forage_settings.get('forage_detection_method', 'Template Matching'))
                     self.forage_detection_threshold.set(forage_settings.get('forage_detection_threshold', 0.25))
                     self.forage_mouse_speed.set(forage_settings.get('forage_mouse_speed', 0.3))
                     self.forage_total_areas.set(forage_settings.get('forage_total_areas', 6))
                     self.forage_post_click_delay.set(forage_settings.get('forage_post_click_delay', 1.8))
+                    
+                    # RGB Detection Settings
+                    self.forage_rgb_target_r.set(forage_settings.get('forage_rgb_target_r', 255))
+                    self.forage_rgb_target_g.set(forage_settings.get('forage_rgb_target_g', 255))
+                    self.forage_rgb_target_b.set(forage_settings.get('forage_rgb_target_b', 255))
+                    self.forage_rgb_tolerance.set(forage_settings.get('forage_rgb_tolerance', 5))
+                    self.forage_rgb_min_cluster.set(forage_settings.get('forage_rgb_min_cluster', 10))
+                    self.forage_rgb_max_cluster.set(forage_settings.get('forage_rgb_max_cluster', 1000))
                     
                     # False Positive Learning Settings
                     self.forage_strike_limit.set(forage_settings.get('forage_strike_limit', 5))
@@ -1624,10 +1714,19 @@ class UnifiedBotGUI:
             'forage_search_region': self.forage_search_region,
             'forage_left_arrow': self.forage_left_arrow,
             'forage_right_arrow': self.forage_right_arrow,
+            'forage_detection_method': self.forage_detection_method.get(),
             'forage_detection_threshold': self.forage_detection_threshold.get(),
             'forage_mouse_speed': self.forage_mouse_speed.get(),
             'forage_total_areas': self.forage_total_areas.get(),
             'forage_post_click_delay': self.forage_post_click_delay.get(),
+            
+            # RGB Detection Settings
+            'forage_rgb_target_r': self.forage_rgb_target_r.get(),
+            'forage_rgb_target_g': self.forage_rgb_target_g.get(),
+            'forage_rgb_target_b': self.forage_rgb_target_b.get(),
+            'forage_rgb_tolerance': self.forage_rgb_tolerance.get(),
+            'forage_rgb_min_cluster': self.forage_rgb_min_cluster.get(),
+            'forage_rgb_max_cluster': self.forage_rgb_max_cluster.get(),
             
             # False Positive Learning Settings
             'forage_strike_limit': self.forage_strike_limit.get(),
@@ -1762,16 +1861,25 @@ class UnifiedBotGUI:
                 "left_arrow_pos": self.forage_left_arrow,
                 "right_arrow_pos": self.forage_right_arrow,
                 
-                # Detection settings
+                # Detection method
+                "detection_method": self.forage_detection_method.get(),
+                
+                # Template matching settings
                 "detection_threshold": self.forage_detection_threshold.get(),
                 "nms_threshold": self.forage_nms_threshold.get(),
                 "grayscale_min": self.forage_grayscale_min.get(),
                 "grayscale_max": self.forage_grayscale_max.get(),
-                
-                # Template scaling
                 "scale_min": self.forage_scale_min.get(),
                 "scale_max": self.forage_scale_max.get(),
                 "scale_steps": self.forage_scale_steps.get(),
+                
+                # RGB detection settings
+                "rgb_target_r": self.forage_rgb_target_r.get(),
+                "rgb_target_g": self.forage_rgb_target_g.get(),
+                "rgb_target_b": self.forage_rgb_target_b.get(),
+                "rgb_tolerance": self.forage_rgb_tolerance.get(),
+                "rgb_min_cluster": self.forage_rgb_min_cluster.get(),
+                "rgb_max_cluster": self.forage_rgb_max_cluster.get(),
                 
                 # Timing settings
                 "post_click_delay": self.forage_post_click_delay.get(),
