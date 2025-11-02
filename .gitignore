@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Settings and logs
+*.json
+*.txt
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Exclude old bot directories (keep only unified_bot)
+forage bot/
+reincarnation bot/
+bot_hub/
+
+# Keep template image
+!unified_bot/template.png
+!requirements.txt
+!README.md
