@@ -13,9 +13,22 @@ A unified bot system that combines Forage Bot and Reincarnation Bot functionalit
 
 ## Installation
 
+### Option 1: Pre-built .exe (Recommended for Users)
+
+1. **Download the latest release** from the [Releases](https://github.com/that0neguy52/Roblox-Bot-Macros/releases) page
+2. **Extract the ZIP file** to your desired location (e.g., Desktop, Documents)
+3. **Run `Unified-Roblox-Bot.exe`** from the extracted folder
+4. **Create a shortcut** (optional):
+   - Right-click `Unified-Roblox-Bot.exe`
+   - Select "Send to" → "Desktop (create shortcut)"
+
+**Note:** Keep all files in the folder together - the .exe needs the other files to run.
+
+### Option 2: Run from Source (For Developers)
+
 1. **Clone the repository**:
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/that0neguy52/Roblox-Bot-Macros.git
    cd "Bot Hub"
    ```
 

@@ -4,9 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
@@ -50,3 +48,10 @@ bot_hub/
 !unified_bot/template.png
 !requirements.txt
 !README.md
+
+# PyInstaller build artifacts
+build/
+*.spec
+
+# Keep dist folder for releases
+# dist/ is now tracked
