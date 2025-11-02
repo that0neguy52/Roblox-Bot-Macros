@@ -335,16 +335,20 @@ class UnifiedBotGUI:
                 self.notebook.tab(2, state=tk.NORMAL)
             except:
                 pass
-            self.create_rein_settings_widgets(self.main_settings_tab)
-            self.create_rein_calibration_widgets(self.calibration_tab)
+            # Only create widgets if tabs have been created
+            if hasattr(self, 'main_settings_tab') and hasattr(self, 'calibration_tab'):
+                self.create_rein_settings_widgets(self.main_settings_tab)
+                self.create_rein_calibration_widgets(self.calibration_tab)
         else:  # forage
             # Hide bloodline editor tab
             try:
                 self.notebook.tab(2, state=tk.HIDDEN)
             except:
                 pass
-            self.create_forage_settings_widgets(self.main_settings_tab)
-            self.create_forage_calibration_widgets(self.calibration_tab)
+            # Only create widgets if tabs have been created
+            if hasattr(self, 'main_settings_tab') and hasattr(self, 'calibration_tab'):
+                self.create_forage_settings_widgets(self.main_settings_tab)
+                self.create_forage_calibration_widgets(self.calibration_tab)
         
         # Update history combo options based on selected bot
         if hasattr(self, 'history_combo'):
@@ -1664,7 +1668,7 @@ class UnifiedBotGUI:
             
             if last_bot:
                 self.selected_bot.set(last_bot)
-                self.on_bot_selection_changed()
+                # Don't call on_bot_selection_changed() here - create_widgets() will call it at line 318
                 self.logger.info(f"Restored last selected bot: {last_bot}")
                 
         except Exception as e:
