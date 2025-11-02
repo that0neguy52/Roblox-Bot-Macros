@@ -8,11 +8,11 @@ import os
 import webbrowser
 import re
 import pyautogui
-from calibration import CalibrationWindow, CalibrationClickWindow
-import gui_logger
-import rein_bot_logic
-import forage_bot_logic
-import settings_manager
+from unified_bot.calibration import CalibrationWindow, CalibrationClickWindow
+import unified_bot.gui_logger as gui_logger
+import unified_bot.rein_bot_logic as rein_bot_logic
+import unified_bot.forage_bot_logic as forage_bot_logic
+import unified_bot.settings_manager as settings_manager
 from pathlib import Path
 from pynput import mouse
 import cv2
@@ -140,7 +140,7 @@ class UnifiedBotGUI:
         self.forage_rgb_target_r = tk.IntVar(value=255)
         self.forage_rgb_target_g = tk.IntVar(value=255)
         self.forage_rgb_target_b = tk.IntVar(value=255)
-        self.forage_rgb_tolerance = tk.IntVar(value=5)
+        self.forage_rgb_tolerance = tk.IntVar(value=1)
         self.forage_rgb_min_cluster = tk.IntVar(value=10)
         self.forage_rgb_max_cluster = tk.IntVar(value=1000)
         
@@ -321,11 +321,13 @@ class UnifiedBotGUI:
         """Called when bot selection changes - shows/hides appropriate tabs."""
         selected = self.selected_bot.get()
         
-        # Clear the current tab content
-        for widget in self.main_settings_tab.winfo_children():
-            widget.destroy()
-        for widget in self.calibration_tab.winfo_children():
-            widget.destroy()
+        # Clear the current tab content (only if widgets have been created)
+        if hasattr(self, 'main_settings_tab'):
+            for widget in self.main_settings_tab.winfo_children():
+                widget.destroy()
+        if hasattr(self, 'calibration_tab'):
+            for widget in self.calibration_tab.winfo_children():
+                widget.destroy()
             
         if selected == "reincarnation":
             # Show bloodline editor tab
@@ -371,6 +373,17 @@ class UnifiedBotGUI:
         self.start_button.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
         self.stop_button = ttk.Button(controls_frame, text=f"Stop Bot ({hotkey_name})", command=self.stop_bot, state=tk.DISABLED)
         self.stop_button.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        
+        # Settings management buttons for Reincarnation bot (moved under Start/Stop)
+        button_frame = ttk.Frame(scrollable_frame)
+        button_frame.pack(fill=tk.X, pady=5)
+        button_frame.columnconfigure(0, weight=1)
+        button_frame.columnconfigure(1, weight=1)
+        button_frame.columnconfigure(2, weight=1)
+        
+        ttk.Button(button_frame, text="Save Settings", command=self.manual_save_settings).grid(row=0, column=0, padx=5, pady=5, sticky="ew")
+        ttk.Button(button_frame, text="Reset to Default", command=self.reset_to_defaults).grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        ttk.Button(button_frame, text="Save as New Default", command=self.save_as_default).grid(row=0, column=2, padx=5, pady=5, sticky="ew")
         
         stop_frame = ttk.Labelframe(scrollable_frame, text="Stop Conditions", padding=10)
         stop_frame.pack(fill=tk.X, pady=5)
@@ -438,17 +451,6 @@ class UnifiedBotGUI:
         self.after_click_delay_entry = ttk.Spinbox(mouse_frame, from_=0.1, to=5.0, increment=0.1, textvariable=self.after_click_delay_var, format="%.1f")
         self.after_click_delay_entry.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
         self.after_click_delay_entry.bind("<MouseWheel>", lambda e: "break")
-        
-        # Part 2: Add settings management buttons for Reincarnation bot
-        button_frame = ttk.Frame(scrollable_frame)
-        button_frame.pack(fill=tk.X, pady=10)
-        button_frame.columnconfigure(0, weight=1)
-        button_frame.columnconfigure(1, weight=1)
-        button_frame.columnconfigure(2, weight=1)
-        
-        ttk.Button(button_frame, text="Save Settings", command=self.manual_save_settings).grid(row=0, column=0, padx=5, pady=5, sticky="ew")
-        ttk.Button(button_frame, text="Reset to Default", command=self.reset_to_defaults).grid(row=0, column=1, padx=5, pady=5, sticky="ew")
-        ttk.Button(button_frame, text="Save as New Default", command=self.save_as_default).grid(row=0, column=2, padx=5, pady=5, sticky="ew")
 
     def create_forage_settings_widgets(self, parent):
         """Create forage bot settings widgets."""
@@ -468,9 +470,15 @@ class UnifiedBotGUI:
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
         
-        # Enable mousewheel scrolling
+        # Enable mousewheel scrolling with safety check
         def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            """Handle mousewheel scrolling"""
+            # Check if canvas exists and is valid
+            if canvas.winfo_exists():
+                try:
+                    canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+                except tk.TclError:
+                    pass  # Canvas no longer exists, ignore
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
         
         controls_frame = ttk.Frame(scrollable_frame)
@@ -483,6 +491,17 @@ class UnifiedBotGUI:
         self.start_button.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
         self.stop_button = ttk.Button(controls_frame, text=f"Stop Bot ({hotkey_name})", command=self.stop_bot, state=tk.DISABLED)
         self.stop_button.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        
+        # Settings management buttons for Forage bot (moved under Start/Stop)
+        button_frame = ttk.Frame(scrollable_frame)
+        button_frame.pack(fill=tk.X, pady=5)
+        button_frame.columnconfigure(0, weight=1)
+        button_frame.columnconfigure(1, weight=1)
+        button_frame.columnconfigure(2, weight=1)
+        
+        ttk.Button(button_frame, text="Save Settings", command=self.manual_save_settings).grid(row=0, column=0, padx=5, pady=5, sticky="ew")
+        ttk.Button(button_frame, text="Reset to Default", command=self.reset_to_defaults).grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        ttk.Button(button_frame, text="Save as New Default", command=self.save_as_default).grid(row=0, column=2, padx=5, pady=5, sticky="ew")
         
         # Detection Method Selection
         method_frame = ttk.Labelframe(scrollable_frame, text="Detection Method", padding=10)
@@ -522,7 +541,6 @@ class UnifiedBotGUI:
         
         # Template Matching Settings Frame
         self.template_settings_frame = ttk.Labelframe(scrollable_frame, text="Template Matching Settings", padding=10)
-        self.template_settings_frame.pack(fill=tk.X, padx=5, pady=5)
         self.template_settings_frame.columnconfigure(1, weight=1)
         
         ttk.Label(self.template_settings_frame, text="Detection Threshold (0.0-1.0):").grid(row=0, column=0, padx=5, pady=5, sticky="w")
@@ -667,17 +685,6 @@ class UnifiedBotGUI:
         
         ttk.Button(learning_frame, text="Clear Blacklist", command=self.clear_forage_blacklist).grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky="ew")
         
-        # Part 2: Add settings management buttons for Forage bot
-        button_frame = ttk.Frame(scrollable_frame)
-        button_frame.pack(fill=tk.X, pady=10)
-        button_frame.columnconfigure(0, weight=1)
-        button_frame.columnconfigure(1, weight=1)
-        button_frame.columnconfigure(2, weight=1)
-        
-        ttk.Button(button_frame, text="Save Settings", command=self.manual_save_settings).grid(row=0, column=0, padx=5, pady=5, sticky="ew")
-        ttk.Button(button_frame, text="Reset to Default", command=self.reset_to_defaults).grid(row=0, column=1, padx=5, pady=5, sticky="ew")
-        ttk.Button(button_frame, text="Save as New Default", command=self.save_as_default).grid(row=0, column=2, padx=5, pady=5, sticky="ew")
-        
         # Initialize visibility based on detection method
         self.on_detection_method_changed()
     
@@ -687,12 +694,12 @@ class UnifiedBotGUI:
         
         if method == "Template Matching":
             # Show template-specific settings
-            self.template_settings_frame.pack(fill="x", padx=5, pady=5)
+            self.template_settings_frame.pack(fill=tk.X, padx=5, pady=5)
             self.rgb_settings_frame.pack_forget()
         else:  # RGB Color Detection
             # Show RGB-specific settings
             self.template_settings_frame.pack_forget()
-            self.rgb_settings_frame.pack(fill="x", padx=5, pady=5)
+            self.rgb_settings_frame.pack(fill=tk.X, padx=5, pady=5)
         
         self.save_settings()
 

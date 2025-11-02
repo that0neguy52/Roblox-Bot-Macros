@@ -6,7 +6,7 @@ import pyautogui
 import pydirectinput
 import cv2
 from pynput import mouse
-import settings_manager
+import unified_bot.settings_manager as settings_manager
 
 logger = logging.getLogger(__name__)
 

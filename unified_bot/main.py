@@ -3,7 +3,7 @@ import threading
 import logging
 import sys
 import time
-import gui
+import unified_bot.gui as gui
 
 # --- Imports for native Windows hotkeys ---
 try:

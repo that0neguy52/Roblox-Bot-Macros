@@ -1,11 +1,11 @@
 import logging
 import time
-import rein_actions as actions
-import rein_vision as vision
+import unified_bot.rein_actions as actions
+import unified_bot.rein_vision as vision
 import re
 import pydirectinput # For sending input
 import pyautogui # For reading pixels
-import settings_manager # To access history file paths
+import unified_bot.settings_manager as settings_manager # To access history file paths
 
 def responsive_sleep(duration, stop_event, step=0.1):
     """

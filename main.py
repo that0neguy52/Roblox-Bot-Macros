@@ -11,7 +11,7 @@ unified_bot_dir = Path(__file__).parent / "unified_bot"
 sys.path.insert(0, str(unified_bot_dir))
 
 # Import and run the main GUI
-from main import main
+from unified_bot.main import main
 
 if __name__ == "__main__":
     main()
